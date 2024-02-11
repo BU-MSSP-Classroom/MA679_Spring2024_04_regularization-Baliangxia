@@ -1,6 +1,6 @@
 ---
 title: "Regularization"
-author: "Your Name"
+author: "Chenghao"
 date: "2023-01-05"
 output: html_document
 bibliography: lecture.bib
@@ -91,15 +91,38 @@ Here are few rules:
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+library(tidyverse)
+library(caret)
+library(glmnet)
+
+ames_new_2008 <- ames_raw_2008 %>% select(SalePrice, `Gr Liv Area`, `Overall Qual` , `Year Built`)
+ames_new_2008  <- na.omit(ames_new_2008 )
+func <- as.formula(log(SalePrice) ~ `Gr Liv Area` +  `Overall Qual` + `Year Built`)
+y = log(ames_new_2008$SalePrice)
+x = model.matrix(func, ames_new_2008)[,-1]
+
+set.seed(679)
+ridge.cv = cv.glmnet(x, y, alpha=0)
+plot(ridge.cv)
+lambda <- ridge.cv$lambda.1se 
+
+ridge <- glmnet(x, y, alpha = 0, lambda = lambda)
+newx <- model.matrix(func, ames_raw_2009)[,-1]
+pred_2009<-exp(predict(ridge,newdata=ames_raw_2009,newx = newx))
+calc_loss(pred_2009,log(ames_raw_2009$SalePrice))
+
+lasso <- glmnet(x, y, alpha = 1, lambda = lambda)
+newx <- model.matrix(func, ames_raw_2009)[,-1]
+pred_2009<-exp(predict(lasso,newdata=ames_raw_2009,newx = newx))
+calc_loss(pred_2009,log(ames_raw_2009$SalePrice))
+
 ```
 
 Your answer:
 
 ~~~
-Please write your answer in full sentences.
 
+The lasso regression model performs slightly better than the ridge regression model given the result.
 
 ~~~
 
@@ -115,8 +138,8 @@ Your code:
 Your answer:
 
 ~~~
-Please write your answer in full sentences.
-
+Ridge regression might not completely eliminate less important variables, so their impact may still be noticeable.
+Lasso regression tends to be more consistent in identifying important variables by setting less important ones to zero.
 
 ~~~
 
@@ -162,8 +185,11 @@ In this exercise, we will generate simulated data, and will then use this data t
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+set.seed(679)
+n <- 100
+X <- rnorm(n)
+epsilon <- rnorm(n)
+
 ```
 
 
@@ -171,8 +197,11 @@ Your code:
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+beta_0 <- 2
+beta_1 <- 1.5
+beta_2 <- -0.5
+beta_3 <- 0.8
+Y <- beta_0 + beta_1*X + beta_2*X^2 + beta_3*X^3 + epsilon
 ```
 
 
@@ -180,8 +209,29 @@ Your code:
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+data <- data.frame(X = X, Y = Y)
+
+library(leaps)
+subsets <- regsubsets(Y ~ poly(X, 10, raw = TRUE), data = data, nvmax = 10)
+summary_subsets <- summary(subsets)
+
+par(mfrow = c(1, 3))
+plot(summary_subsets$cp, xlab = "Number of Predictors", ylab = "Cp", type = "l")
+plot(summary_subsets$bic, xlab = "Number of Predictors", ylab = "BIC", type = "l")
+plot(summary_subsets$adjr2, xlab = "Number of Predictors", ylab = "Adjusted R^2", type = "l")
+
+best_cp_model <- which.min(summary_subsets$cp)
+best_bic_model <- which.min(summary_subsets$bic)
+best_adjr2_model <- which.max(summary_subsets$adjr2)
+
+coefficients_cp <- coef(subsets, id = best_cp_model)
+coefficients_bic <- coef(subsets, id = best_bic_model)
+coefficients_adjr2 <- coef(subsets, id = best_adjr2_model)
+
+print(coefficients_cp)
+print(coefficients_bic)
+print(coefficients_adjr2)
+
 ```
 
 Your answer:
@@ -196,8 +246,13 @@ Please write your answer in full sentences.
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+forward_model <- step(lm(Y ~ poly(X, 10, raw = TRUE), data = data), direction = "forward")
+
+backward_model <- step(lm(Y ~ poly(X, 10, raw = TRUE), data = data), direction = "backward")
+
+summary(forward_model)
+summary(backward_model)
+
 ```
 
 Your answer:
@@ -212,8 +267,24 @@ Please write your answer in full sentences.
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+library(glmnet)
+
+X_matrix <- model.matrix(~ poly(X, 10, raw = TRUE), data = data)
+Y_vector <- data$Y
+
+lasso_cv <- cv.glmnet(X_matrix, Y_vector, alpha = 1)
+
+plot(lasso_cv)
+
+optimal_lambda <- lasso_cv$lambda.min
+cat("Optimal lambda:", optimal_lambda, "\n")
+
+lasso_model <- glmnet(X_matrix, Y_vector, alpha = 1, lambda = optimal_lambda)
+
+coef_lasso <- coef(lasso_model)
+
+print(coef_lasso)
+
 ```
 
 Your answer:
@@ -228,8 +299,47 @@ Please write your answer in full sentences.
 
 Your code:
 ```{r,echo=TRUE}
-#
-#
+beta_0 <- 2
+beta_7 <- 1.5
+
+Y_new <- beta_0 + beta_7*X^7 + epsilon
+
+data_new <- data.frame(X = X, Y_new = Y_new)
+
+subsets_new <- regsubsets(Y_new ~ poly(X, 10, raw = TRUE), data = data_new, nvmax = 10)
+
+summary_subsets_new <- summary(subsets_new)
+
+par(mfrow = c(1, 3))
+plot(summary_subsets_new$cp, xlab = "Number of Predictors", ylab = "Cp", type = "l")
+plot(summary_subsets_new$bic, xlab = "Number of Predictors", ylab = "BIC", type = "l")
+plot(summary_subsets_new$adjr2, xlab = "Number of Predictors", ylab = "Adjusted R^2", type = "l")
+
+best_cp_model_new <- which.min(summary_subsets_new$cp)
+best_bic_model_new <- which.min(summary_subsets_new$bic)
+best_adjr2_model_new <- which.max(summary_subsets_new$adjr2)
+
+coefficients_cp_new <- coef(subsets_new, id = best_cp_model_new)
+coefficients_bic_new <- coef(subsets_new, id = best_bic_model_new)
+coefficients_adjr2_new <- coef(subsets_new, id = best_adjr2_model_new)
+
+print(coefficients_cp_new)
+print(coefficients_bic_new)
+print(coefficients_adjr2_new)
+
+lasso_cv_new <- cv.glmnet(X_matrix, Y_new, alpha = 1)
+
+plot(lasso_cv_new)
+
+optimal_lambda_new <- lasso_cv_new$lambda.min
+cat("Optimal lambda:", optimal_lambda_new, "\n")
+
+lasso_model_new <- glmnet(X_matrix, Y_new, alpha = 1, lambda = optimal_lambda_new)
+
+coef_lasso_new <- coef(lasso_model_new)
+
+print(coef_lasso_new)
+
 ```
 
 Your answer:
